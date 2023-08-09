@@ -10,8 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/smartwalle/ngx"
-	"github.com/smartwalle/nsign"
 	"io"
 	"net/http"
 	"net/url"
@@ -19,6 +17,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/smartwalle/ngx"
+	"github.com/smartwalle/nsign"
 
 	"github.com/smartwalle/ncrypto"
 )
@@ -402,6 +403,37 @@ func (this *Client) doRequest(method string, param Param, result interface{}) (e
 	var bizFieldName = strings.Replace(apiName, ".", "_", -1) + kResponseSuffix
 
 	return this.decode(bodyBytes, bizFieldName, param.NeedVerify(), result)
+}
+
+// 部分接口返回的是html,不能json.Unmarshal
+func (this *Client) DoRequestNoDecode(method string, param Param) (bodyBytes []byte, err error) {
+	var req = ngx.NewRequest(method, this.host, ngx.WithClient(this.Client))
+	req.SetContentType(kContentType)
+	if param != nil {
+		var values url.Values
+		values, err = this.URLValues(param)
+		if err != nil {
+			return nil, err
+		}
+		req.SetParams(values)
+
+		var files = param.FileParams()
+		for _, file := range files {
+			req.AddFile(file.Name, file.Filename, file.Filepath)
+		}
+	}
+
+	rsp, err := req.Do(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer rsp.Body.Close()
+
+	bodyBytes, err = io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return
 }
 
 func (this *Client) decode(data []byte, bizFieldName string, needVerifySign bool, result interface{}) (err error) {

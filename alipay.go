@@ -407,6 +407,9 @@ func (this *Client) doRequest(method string, param Param, result interface{}) (e
 
 // 部分接口返回的是html,不能json.Unmarshal
 func (this *Client) DoRequestNoDecode(method string, param Param) (bodyBytes []byte, err error) {
+	this.Client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	var req = ngx.NewRequest(method, this.host, ngx.WithClient(this.Client))
 	req.SetContentType(kContentType)
 	if param != nil {
@@ -432,6 +435,9 @@ func (this *Client) DoRequestNoDecode(method string, param Param) (bodyBytes []b
 	bodyBytes, err = io.ReadAll(rsp.Body)
 	if err != nil {
 		return nil, err
+	}
+	if rsp.StatusCode == 302 {
+		bodyBytes = []byte(rsp.Header.Get("location"))
 	}
 	return
 }
